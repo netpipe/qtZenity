@@ -1,226 +1,241 @@
-#include <QApplication>
-#include <QCommandLineParser>
-#include <QMessageBox>
-#include <QInputDialog>
-#include <QCheckBox>
-#include <QDialog>
-#include <QListWidget>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QPushButton>
-#include <QLabel>
-#include <QCalendarWidget>
-#include <QLineEdit>
-#include <QStringList>
-#include <QTextStream>
-#include <QDate>
+// qtzenity_extended.cpp
+// Compile with: g++ qtzenity_extended.cpp -o qtzenity `pkg-config --cflags --libs Qt5Widgets`
 
-QString csvEscape(const QString &text) {
-    QString escaped = text;
-    if (escaped.contains('"'))
-        escaped.replace("\"", "\"\"");
-    if (escaped.contains(',') || escaped.contains('"') || escaped.contains('\n') || escaped.contains('\r'))
-        escaped = "\"" + escaped + "\"";
-    return escaped;
+#include <QApplication>
+#include <QDialog>
+#include <QVBoxLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QCheckBox>
+#include <QPushButton>
+#include <QCalendarWidget>
+#include <QSlider>
+#include <QDial>
+#include <QRadioButton>
+#include <QButtonGroup>
+#include <QDateTimeEdit>
+#include <QMovie>
+#include <QPixmap>
+#include <QImageReader>
+#include <QCommandLineParser>
+#include <QLCDNumber>
+#include <QTimer>
+#include <QFileInfo>
+#include <iostream>
+
+using namespace std;
+
+QString csvEscape(const QString &str) {
+    QString result = str;
+    if (result.contains(',') || result.contains('"')) {
+        result.replace("\"", "\"\"");
+        result = "\"" + result + "\"";
+    }
+    return result;
 }
 
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
-    QCoreApplication::setApplicationName("qtzenity");
-    QCoreApplication::setApplicationVersion("1.1");
 
     QCommandLineParser parser;
-    parser.setApplicationDescription("Qt Zenity replacement with multi widgets");
+    parser.setApplicationDescription("QtZenity Extended");
     parser.addHelpOption();
-    parser.addVersionOption();
-
-    // Existing dialog options
-    parser.addOption(QCommandLineOption("info", "Show info message box.", "text"));
-    parser.addOption(QCommandLineOption("warning", "Show warning message box.", "text"));
-    parser.addOption(QCommandLineOption("error", "Show error message box.", "text"));
-    parser.addOption(QCommandLineOption("question", "Show question message box.", "text"));
-    parser.addOption(QCommandLineOption("entry", "Show text entry dialog.", "text"));
-    parser.addOption(QCommandLineOption("checkbox", "Show checkbox dialog.", "text"));
-    parser.addOption(QCommandLineOption("checked", "Checkbox default checked."));
-    parser.addOption(QCommandLineOption("list", "Show list selection dialog.", "text"));
-    parser.addOption(QCommandLineOption("items", "Comma separated list items", "items"));
-
-    // New combined widgets options
-    parser.addOption(QCommandLineOption("multi-checkbox", "Comma separated checkbox labels (multiple checkboxes)", "labels"));
-    parser.addOption(QCommandLineOption("calendar", "Show calendar widget with prompt label", "text"));
-    parser.addOption(QCommandLineOption("debug", "Output debug info with widget names"));
+    parser.addOptions({
+        {"entry", "Input box", "label"},
+        {"multi-checkbox", "Comma-separated checkboxes", "list"},
+        {"calendar", "Calendar with label", "label"},
+        {"slider", "Slider: label,min,max,default", "spec"},
+        {"dial", "Dial: label,min,max,default", "spec"},
+        {"datetime", "DateTimeEdit with label", "label"},
+        {"radio", "Radio: label,opt1,opt2,...", "spec"},
+        {"image", "Image: path[,w,h]", "spec"},
+        {"movie", "Movie/GIF: path[,w,h]", "spec"},
+        {"clock", "Show clock"},
+        {"window-size", "Window size: w,h", "spec"},
+        {"debug", "Debug output with widget names"}
+    });
 
     parser.process(app);
-
-    QTextStream out(stdout);
-    QTextStream err(stderr);
-
-    // Handle simple dialogs first (like before)
-    if (parser.isSet("info")) {
-        QMessageBox::information(nullptr, "Information", parser.value("info"));
-        out << "OK\n";
-        return 0;
-    }
-    if (parser.isSet("warning")) {
-        QMessageBox::warning(nullptr, "Warning", parser.value("warning"));
-        out << "OK\n";
-        return 0;
-    }
-    if (parser.isSet("error")) {
-        QMessageBox::critical(nullptr, "Error", parser.value("error"));
-        out << "OK\n";
-        return 0;
-    }
-    if (parser.isSet("question")) {
-        QMessageBox::StandardButton reply = QMessageBox::question(nullptr, "Question", parser.value("question"), QMessageBox::Yes | QMessageBox::No);
-        out << (reply == QMessageBox::Yes ? "Yes" : "No") << "\n";
-        return (reply == QMessageBox::Yes ? 0 : 1);
-    }
-
-    if (parser.isSet("checkbox")) {
-        QDialog dialog;
-        dialog.setWindowTitle("Checkbox");
-        QVBoxLayout layout(&dialog);
-        QCheckBox checkbox(parser.value("checkbox"));
-        if (parser.isSet("checked")) checkbox.setChecked(true);
-        layout.addWidget(&checkbox);
-        QPushButton okButton("OK");
-        QPushButton cancelButton("Cancel");
-        QHBoxLayout btnLayout;
-        btnLayout.addWidget(&okButton);
-        btnLayout.addWidget(&cancelButton);
-        layout.addLayout(&btnLayout);
-        QObject::connect(&okButton, &QPushButton::clicked, &dialog, &QDialog::accept);
-        QObject::connect(&cancelButton, &QPushButton::clicked, &dialog, &QDialog::reject);
-        if (dialog.exec() == QDialog::Accepted) {
-            out << (checkbox.isChecked() ? "true" : "false") << "\n";
-            return 0;
-        }
-        return 1;
-    }
-    if (parser.isSet("list")) {
-        if (!parser.isSet("items")) {
-            err << "Error: --items required for --list\n";
-            return 2;
-        }
-        QStringList items = parser.value("items").split(',' );
-        for (QString &item : items) item = item.trimmed();
-        QDialog dialog;
-        dialog.setWindowTitle(parser.value("list"));
-        QVBoxLayout layout(&dialog);
-        QListWidget listWidget;
-        listWidget.addItems(items);
-        listWidget.setSelectionMode(QAbstractItemView::SingleSelection);
-        layout.addWidget(&listWidget);
-        QPushButton okButton("OK");
-        QPushButton cancelButton("Cancel");
-        QHBoxLayout btnLayout;
-        btnLayout.addWidget(&okButton);
-        btnLayout.addWidget(&cancelButton);
-        layout.addLayout(&btnLayout);
-        QObject::connect(&okButton, &QPushButton::clicked, &dialog, &QDialog::accept);
-        QObject::connect(&cancelButton, &QPushButton::clicked, &dialog, &QDialog::reject);
-        if (dialog.exec() == QDialog::Accepted && !listWidget.selectedItems().isEmpty()) {
-            out << csvEscape(listWidget.selectedItems().first()->text()) << "\n";
-            return 0;
-        }
-        return 1;
-    }
-
-    // Now handle combined dialog with multi widgets
-    bool hasMultiCheckbox = parser.isSet("multi-checkbox");
-    bool hasCalendar = parser.isSet("calendar");
-    bool hasEntry = parser.isSet("entry");
     bool debug = parser.isSet("debug");
 
-    if (hasMultiCheckbox || hasCalendar || hasEntry) {
-        QDialog dialog;
-        dialog.setWindowTitle("Input Dialog");
-        QVBoxLayout mainLayout(&dialog);
+    QDialog dialog;
+    dialog.setWindowTitle("QtZenity Extended");
+    QVBoxLayout *layout = new QVBoxLayout(&dialog);
 
-        // Store pointers to widgets for output
-        QList<QCheckBox*> checkboxes;
-        QLineEdit *lineEdit = nullptr;
-        QCalendarWidget *calendar = nullptr;
+    if (parser.isSet("window-size")) {
+        auto parts = parser.value("window-size").split(',');
+        if (parts.size() == 2)
+            dialog.resize(parts[0].toInt(), parts[1].toInt());
+      //  dialog.setFixedSize(parts[0].toInt(), parts[1].toInt());
 
-        // Add entry widget if requested
-        if (hasEntry) {
-            QLabel *entryLabel = new QLabel(parser.value("entry"));
-            mainLayout.addWidget(entryLabel);
-            lineEdit = new QLineEdit;
-            mainLayout.addWidget(lineEdit);
-        }
-
-        // Add calendar widget if requested
-        if (hasCalendar) {
-            QLabel *calendarLabel = new QLabel(parser.value("calendar"));
-            mainLayout.addWidget(calendarLabel);
-            calendar = new QCalendarWidget;
-            calendar->setGridVisible(true);
-            mainLayout.addWidget(calendar);
-        }
-
-        // Add multi-checkbox widgets
-        if (hasMultiCheckbox) {
-            QStringList labels = parser.value("multi-checkbox").split(',');
-            for (QString &label : labels) {
-                label = label.trimmed();
-                QCheckBox *cb = new QCheckBox(label);
-                checkboxes.append(cb);
-                mainLayout.addWidget(cb);
-            }
-        }
-
-        // Buttons
-        QHBoxLayout *btnLayout = new QHBoxLayout;
-        QPushButton *okButton = new QPushButton("OK");
-        QPushButton *cancelButton = new QPushButton("Cancel");
-        btnLayout->addWidget(okButton);
-        btnLayout->addWidget(cancelButton);
-        mainLayout.addLayout(btnLayout);
-
-        QObject::connect(okButton, &QPushButton::clicked, &dialog, &QDialog::accept);
-        QObject::connect(cancelButton, &QPushButton::clicked, &dialog, &QDialog::reject);
-
-        if (dialog.exec() != QDialog::Accepted) {
-            return 1; // cancel
-        }
-
-        // Compose output string
-        QStringList parts;
-
-        if (hasCalendar && calendar) {
-            QDate date = calendar->selectedDate();
-            if (debug)
-                parts << QString("calendar=%1").arg(csvEscape(date.toString(Qt::ISODate)));
-            else
-                parts << QString("calendar=%1").arg(date.toString(Qt::ISODate));
-        }
-        if (hasEntry && lineEdit) {
-            QString val = lineEdit->text();
-            if (debug)
-                parts << QString("input=%1").arg(csvEscape(val));
-            else
-                parts << QString("input=%1").arg(val);
-        }
-        if (hasMultiCheckbox) {
-            for (QCheckBox *cb : checkboxes) {
-                QString key = cb->text();
-                bool checked = cb->isChecked();
-                if (debug)
-                    parts << QString("%1=%2").arg(csvEscape(key)).arg(checked ? "true" : "false");
-                else {
-                    // For no debug, key with spaces replaced by underscores, all lowercase (optional)
-                    QString simpleKey = key.toLower().replace(" ", "_");
-                    parts << QString("%1=%2").arg(simpleKey).arg(checked ? "true" : "false");
-                }
-            }
-        }
-
-        out << parts.join(",") << "\n";
-        return 0;
+        dialog.setMinimumSize(50, 50); // Example: basic layout protection
+     //   dialog.resize(width, height);    // Starting size
     }
 
-    err << "Error: No valid dialog type specified. Use --help.\n";
-    return 2;
+    QMap<QString, QWidget*> widgetMap;
+
+    if (parser.isSet("image")) {
+        auto specs = parser.values("image");
+        for (auto spec : specs) {
+            auto parts = spec.split(',');
+            if (parts.size() >= 1) {
+                QLabel *imgLabel = new QLabel;
+                QPixmap pix(parts[0]);
+                if (parts.size() >= 3)
+                    pix = pix.scaled(parts[1].toInt(), parts[2].toInt(), Qt::KeepAspectRatio);
+                imgLabel->setPixmap(pix);
+                layout->addWidget(imgLabel);
+            }
+        }
+    }
+
+    if (parser.isSet("movie")) {
+        auto specs = parser.values("movie");
+        for (auto spec : specs) {
+            auto parts = spec.split(',');
+            if (parts.size() >= 1) {
+                QLabel *movLabel = new QLabel;
+                QMovie *movie = new QMovie(parts[0]);
+                movLabel->setMovie(movie);
+                if (parts.size() >= 3)
+                    movLabel->setFixedSize(parts[1].toInt(), parts[2].toInt());
+                movie->start();
+                layout->addWidget(movLabel);
+            }
+        }
+    }
+
+    QLineEdit *entryWidget = nullptr;
+    if (parser.isSet("entry")) {
+        layout->addWidget(new QLabel(parser.value("entry")));
+        entryWidget = new QLineEdit;
+        layout->addWidget(entryWidget);
+    }
+
+    QList<QCheckBox*> checkboxes;
+    if (parser.isSet("multi-checkbox")) {
+        for (QString label : parser.value("multi-checkbox").split(',')) {
+            QCheckBox *cb = new QCheckBox(label.trimmed());
+            checkboxes << cb;
+            layout->addWidget(cb);
+        }
+    }
+
+    QCalendarWidget *calendar = nullptr;
+    if (parser.isSet("calendar")) {
+        layout->addWidget(new QLabel(parser.value("calendar")));
+        calendar = new QCalendarWidget;
+        layout->addWidget(calendar);
+    }
+
+    if (parser.isSet("slider")) {
+        auto parts = parser.value("slider").split(',');
+        if (parts.size() == 4) {
+            layout->addWidget(new QLabel(parts[0]));
+            QSlider *slider = new QSlider(Qt::Horizontal);
+            slider->setMinimum(parts[1].toInt());
+            slider->setMaximum(parts[2].toInt());
+            slider->setValue(parts[3].toInt());
+            layout->addWidget(slider);
+            widgetMap["slider"] = slider;
+        }
+    }
+
+    if (parser.isSet("dial")) {
+        auto parts = parser.value("dial").split(',');
+        if (parts.size() == 4) {
+            layout->addWidget(new QLabel(parts[0]));
+            QDial *dial = new QDial;
+            dial->setMinimum(parts[1].toInt());
+            dial->setMaximum(parts[2].toInt());
+            dial->setValue(parts[3].toInt());
+            layout->addWidget(dial);
+            widgetMap["dial"] = dial;
+        }
+    }
+
+    if (parser.isSet("datetime")) {
+        layout->addWidget(new QLabel(parser.value("datetime")));
+        QDateTimeEdit *dtEdit = new QDateTimeEdit(QDateTime::currentDateTime());
+        layout->addWidget(dtEdit);
+        widgetMap["datetime"] = dtEdit;
+    }
+
+    if (parser.isSet("radio")) {
+        auto parts = parser.value("radio").split(',');
+        if (parts.size() >= 2) {
+            layout->addWidget(new QLabel(parts[0]));
+            QButtonGroup *group = new QButtonGroup(&dialog);
+            for (int i = 1; i < parts.size(); ++i) {
+                QRadioButton *rb = new QRadioButton(parts[i]);
+                group->addButton(rb);
+                layout->addWidget(rb);
+                if (i == 1) rb->setChecked(true);
+            }
+            QButtonGroup *radioGroup = group;
+        }
+    }
+
+    QLCDNumber *clockDisplay = nullptr;
+    if (parser.isSet("clock")) {
+        clockDisplay = new QLCDNumber;
+        layout->addWidget(clockDisplay);
+        QTimer *timer = new QTimer(&dialog);
+        QObject::connect(timer, &QTimer::timeout, [&]() {
+            clockDisplay->display(QTime::currentTime().toString("hh:mm:ss"));
+        });
+        timer->start(1000);
+    }
+
+    QHBoxLayout *btnLayout = new QHBoxLayout;
+    QPushButton *ok = new QPushButton("OK"), *cancel = new QPushButton("Cancel");
+    QObject::connect(ok, &QPushButton::clicked, &dialog, &QDialog::accept);
+    QObject::connect(cancel, &QPushButton::clicked, &dialog, &QDialog::reject);
+    btnLayout->addWidget(ok);
+    btnLayout->addWidget(cancel);
+    layout->addLayout(btnLayout);
+
+    if (dialog.exec() != QDialog::Accepted)
+        return 1;
+
+    QStringList results;
+    if (entryWidget)
+        results << QString(debug ? "input=%1" : "%1").arg(csvEscape(entryWidget->text()));
+
+    if (calendar)
+        results << QString(debug ? "calendar=%1" : "%1").arg(calendar->selectedDate().toString(Qt::ISODate));
+
+    for (QCheckBox *cb : checkboxes) {
+        QString label = cb->text().toLower().replace(" ", "_");
+        QString value = cb->isChecked() ? "true" : "false";
+        results << QString(debug ? "%1=%2" : "%2").arg(label).arg(value);
+    }
+
+    if (widgetMap.contains("slider")) {
+        auto s = qobject_cast<QSlider*>(widgetMap["slider"]);
+        results << QString(debug ? "slider=%1" : "%1").arg(s->value());
+    }
+
+    if (widgetMap.contains("dial")) {
+        auto d = qobject_cast<QDial*>(widgetMap["dial"]);
+        results << QString(debug ? "dial=%1" : "%1").arg(d->value());
+    }
+
+    if (widgetMap.contains("datetime")) {
+        auto dt = qobject_cast<QDateTimeEdit*>(widgetMap["datetime"]);
+        results << QString(debug ? "datetime=%1" : "%1").arg(dt->dateTime().toString(Qt::ISODate));
+    }
+
+    if (widgetMap.contains("radio")) {
+        auto g = qobject_cast<QButtonGroup*>(widgetMap["radio"]);
+        QAbstractButton *btn = g->checkedButton();
+        if (btn)
+            results << QString(debug ? "radio=%1" : "%1").arg(btn->text());
+    }
+
+    if (clockDisplay)
+        results << QString(debug ? "clock=%1" : "%1").arg(QTime::currentTime().toString("hh:mm:ss"));
+
+    cout << results.join(",").toStdString() << endl;
+    return 0;
 }
