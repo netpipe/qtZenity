@@ -76,13 +76,7 @@ int main(int argc, char *argv[]) {
         out << (reply == QMessageBox::Yes ? "Yes" : "No") << "\n";
         return (reply == QMessageBox::Yes ? 0 : 1);
     }
-    if (parser.isSet("entry")) {
-        bool ok;
-        QString input = QInputDialog::getText(nullptr, "Input", parser.value("entry"), QLineEdit::Normal, "", &ok);
-        if (!ok) return 1;
-        out << csvEscape(input) << "\n";
-        return 0;
-    }
+
     if (parser.isSet("checkbox")) {
         QDialog dialog;
         dialog.setWindowTitle("Checkbox");
