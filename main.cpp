@@ -6,9 +6,14 @@
 #include <QDialog>
 #include <QListWidget>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QPushButton>
+#include <QLabel>
+#include <QCalendarWidget>
+#include <QLineEdit>
 #include <QStringList>
 #include <QTextStream>
+#include <QDate>
 
 QString csvEscape(const QString &text) {
     QString escaped = text;
@@ -22,137 +27,204 @@ QString csvEscape(const QString &text) {
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     QCoreApplication::setApplicationName("qtzenity");
-    QCoreApplication::setApplicationVersion("1.0");
+    QCoreApplication::setApplicationVersion("1.1");
 
     QCommandLineParser parser;
-    parser.setApplicationDescription("Qt Zenity replacement");
+    parser.setApplicationDescription("Qt Zenity replacement with multi widgets");
     parser.addHelpOption();
     parser.addVersionOption();
 
-    // Dialog type options
-    QCommandLineOption infoOption(QStringList() << "info", "Show info message box.", "text");
-    QCommandLineOption warningOption(QStringList() << "warning", "Show warning message box.", "text");
-    QCommandLineOption errorOption(QStringList() << "error", "Show error message box.", "text");
-    QCommandLineOption questionOption(QStringList() << "question", "Show question message box.", "text");
+    // Existing dialog options
+    parser.addOption(QCommandLineOption("info", "Show info message box.", "text"));
+    parser.addOption(QCommandLineOption("warning", "Show warning message box.", "text"));
+    parser.addOption(QCommandLineOption("error", "Show error message box.", "text"));
+    parser.addOption(QCommandLineOption("question", "Show question message box.", "text"));
+    parser.addOption(QCommandLineOption("entry", "Show text entry dialog.", "text"));
+    parser.addOption(QCommandLineOption("checkbox", "Show checkbox dialog.", "text"));
+    parser.addOption(QCommandLineOption("checked", "Checkbox default checked."));
+    parser.addOption(QCommandLineOption("list", "Show list selection dialog.", "text"));
+    parser.addOption(QCommandLineOption("items", "Comma separated list items", "items"));
 
-    QCommandLineOption entryOption(QStringList() << "entry", "Show text entry dialog.", "text");
-    QCommandLineOption checkboxOption(QStringList() << "checkbox", "Show checkbox dialog.", "text");
-    QCommandLineOption checkedOption(QStringList() << "checked", "Checkbox default checked.");
-
-    QCommandLineOption listOption(QStringList() << "list", "Show list selection dialog.", "text");
-    QCommandLineOption itemsOption(QStringList() << "items", "Comma separated list items", "items");
-
-    parser.addOption(infoOption);
-    parser.addOption(warningOption);
-    parser.addOption(errorOption);
-    parser.addOption(questionOption);
-
-    parser.addOption(entryOption);
-    parser.addOption(checkboxOption);
-    parser.addOption(checkedOption);
-
-    parser.addOption(listOption);
-    parser.addOption(itemsOption);
+    // New combined widgets options
+    parser.addOption(QCommandLineOption("multi-checkbox", "Comma separated checkbox labels (multiple checkboxes)", "labels"));
+    parser.addOption(QCommandLineOption("calendar", "Show calendar widget with prompt label", "text"));
+    parser.addOption(QCommandLineOption("debug", "Output debug info with widget names"));
 
     parser.process(app);
 
     QTextStream out(stdout);
     QTextStream err(stderr);
 
-    if (parser.isSet(infoOption)) {
-        QString text = parser.value(infoOption);
-        QMessageBox::information(nullptr, "Information", text);
+    // Handle simple dialogs first (like before)
+    if (parser.isSet("info")) {
+        QMessageBox::information(nullptr, "Information", parser.value("info"));
         out << "OK\n";
         return 0;
     }
-
-    if (parser.isSet(warningOption)) {
-        QString text = parser.value(warningOption);
-        QMessageBox::warning(nullptr, "Warning", text);
+    if (parser.isSet("warning")) {
+        QMessageBox::warning(nullptr, "Warning", parser.value("warning"));
         out << "OK\n";
         return 0;
     }
-
-    if (parser.isSet(errorOption)) {
-        QString text = parser.value(errorOption);
-        QMessageBox::critical(nullptr, "Error", text);
+    if (parser.isSet("error")) {
+        QMessageBox::critical(nullptr, "Error", parser.value("error"));
         out << "OK\n";
         return 0;
     }
-
-    if (parser.isSet(questionOption)) {
-        QString text = parser.value(questionOption);
-        QMessageBox::StandardButton reply = QMessageBox::question(nullptr, "Question", text, QMessageBox::Yes | QMessageBox::No);
+    if (parser.isSet("question")) {
+        QMessageBox::StandardButton reply = QMessageBox::question(nullptr, "Question", parser.value("question"), QMessageBox::Yes | QMessageBox::No);
         out << (reply == QMessageBox::Yes ? "Yes" : "No") << "\n";
         return (reply == QMessageBox::Yes ? 0 : 1);
     }
-
-    if (parser.isSet(entryOption)) {
-        QString text = parser.value(entryOption);
+    if (parser.isSet("entry")) {
         bool ok;
-        QString input = QInputDialog::getText(nullptr, "Input", text, QLineEdit::Normal, "", &ok);
+        QString input = QInputDialog::getText(nullptr, "Input", parser.value("entry"), QLineEdit::Normal, "", &ok);
         if (!ok) return 1;
         out << csvEscape(input) << "\n";
         return 0;
     }
-
-    if (parser.isSet(checkboxOption)) {
-        QString text = parser.value(checkboxOption);
+    if (parser.isSet("checkbox")) {
         QDialog dialog;
         dialog.setWindowTitle("Checkbox");
         QVBoxLayout layout(&dialog);
-        QCheckBox checkbox(text);
-        if (parser.isSet(checkedOption)) checkbox.setChecked(true);
+        QCheckBox checkbox(parser.value("checkbox"));
+        if (parser.isSet("checked")) checkbox.setChecked(true);
         layout.addWidget(&checkbox);
-
         QPushButton okButton("OK");
         QPushButton cancelButton("Cancel");
-        layout.addWidget(&okButton);
-        layout.addWidget(&cancelButton);
-
+        QHBoxLayout btnLayout;
+        btnLayout.addWidget(&okButton);
+        btnLayout.addWidget(&cancelButton);
+        layout.addLayout(&btnLayout);
         QObject::connect(&okButton, &QPushButton::clicked, &dialog, &QDialog::accept);
         QObject::connect(&cancelButton, &QPushButton::clicked, &dialog, &QDialog::reject);
-
-        int ret = dialog.exec();
-        if (ret == QDialog::Accepted) {
+        if (dialog.exec() == QDialog::Accepted) {
             out << (checkbox.isChecked() ? "true" : "false") << "\n";
             return 0;
         }
         return 1;
     }
-
-    if (parser.isSet(listOption)) {
-        QString title = parser.value(listOption);
-        if (!parser.isSet(itemsOption)) {
+    if (parser.isSet("list")) {
+        if (!parser.isSet("items")) {
             err << "Error: --items required for --list\n";
             return 2;
         }
-        QStringList items = parser.value(itemsOption).split(',');
+        QStringList items = parser.value("items").split(',' );
         for (QString &item : items) item = item.trimmed();
-
         QDialog dialog;
-        dialog.setWindowTitle(title);
+        dialog.setWindowTitle(parser.value("list"));
         QVBoxLayout layout(&dialog);
         QListWidget listWidget;
         listWidget.addItems(items);
         listWidget.setSelectionMode(QAbstractItemView::SingleSelection);
         layout.addWidget(&listWidget);
-
         QPushButton okButton("OK");
         QPushButton cancelButton("Cancel");
-        layout.addWidget(&okButton);
-        layout.addWidget(&cancelButton);
-
+        QHBoxLayout btnLayout;
+        btnLayout.addWidget(&okButton);
+        btnLayout.addWidget(&cancelButton);
+        layout.addLayout(&btnLayout);
         QObject::connect(&okButton, &QPushButton::clicked, &dialog, &QDialog::accept);
         QObject::connect(&cancelButton, &QPushButton::clicked, &dialog, &QDialog::reject);
-
-        int ret = dialog.exec();
-        if (ret == QDialog::Accepted && !listWidget.selectedItems().isEmpty()) {
-            QString selected = listWidget.selectedItems().first()->text();
-            out << csvEscape(selected) << "\n";
+        if (dialog.exec() == QDialog::Accepted && !listWidget.selectedItems().isEmpty()) {
+            out << csvEscape(listWidget.selectedItems().first()->text()) << "\n";
             return 0;
         }
         return 1;
+    }
+
+    // Now handle combined dialog with multi widgets
+    bool hasMultiCheckbox = parser.isSet("multi-checkbox");
+    bool hasCalendar = parser.isSet("calendar");
+    bool hasEntry = parser.isSet("entry");
+    bool debug = parser.isSet("debug");
+
+    if (hasMultiCheckbox || hasCalendar || hasEntry) {
+        QDialog dialog;
+        dialog.setWindowTitle("Input Dialog");
+        QVBoxLayout mainLayout(&dialog);
+
+        // Store pointers to widgets for output
+        QList<QCheckBox*> checkboxes;
+        QLineEdit *lineEdit = nullptr;
+        QCalendarWidget *calendar = nullptr;
+
+        // Add entry widget if requested
+        if (hasEntry) {
+            QLabel *entryLabel = new QLabel(parser.value("entry"));
+            mainLayout.addWidget(entryLabel);
+            lineEdit = new QLineEdit;
+            mainLayout.addWidget(lineEdit);
+        }
+
+        // Add calendar widget if requested
+        if (hasCalendar) {
+            QLabel *calendarLabel = new QLabel(parser.value("calendar"));
+            mainLayout.addWidget(calendarLabel);
+            calendar = new QCalendarWidget;
+            calendar->setGridVisible(true);
+            mainLayout.addWidget(calendar);
+        }
+
+        // Add multi-checkbox widgets
+        if (hasMultiCheckbox) {
+            QStringList labels = parser.value("multi-checkbox").split(',');
+            for (QString &label : labels) {
+                label = label.trimmed();
+                QCheckBox *cb = new QCheckBox(label);
+                checkboxes.append(cb);
+                mainLayout.addWidget(cb);
+            }
+        }
+
+        // Buttons
+        QHBoxLayout *btnLayout = new QHBoxLayout;
+        QPushButton *okButton = new QPushButton("OK");
+        QPushButton *cancelButton = new QPushButton("Cancel");
+        btnLayout->addWidget(okButton);
+        btnLayout->addWidget(cancelButton);
+        mainLayout.addLayout(btnLayout);
+
+        QObject::connect(okButton, &QPushButton::clicked, &dialog, &QDialog::accept);
+        QObject::connect(cancelButton, &QPushButton::clicked, &dialog, &QDialog::reject);
+
+        if (dialog.exec() != QDialog::Accepted) {
+            return 1; // cancel
+        }
+
+        // Compose output string
+        QStringList parts;
+
+        if (hasCalendar && calendar) {
+            QDate date = calendar->selectedDate();
+            if (debug)
+                parts << QString("calendar=%1").arg(csvEscape(date.toString(Qt::ISODate)));
+            else
+                parts << QString("calendar=%1").arg(date.toString(Qt::ISODate));
+        }
+        if (hasEntry && lineEdit) {
+            QString val = lineEdit->text();
+            if (debug)
+                parts << QString("input=%1").arg(csvEscape(val));
+            else
+                parts << QString("input=%1").arg(val);
+        }
+        if (hasMultiCheckbox) {
+            for (QCheckBox *cb : checkboxes) {
+                QString key = cb->text();
+                bool checked = cb->isChecked();
+                if (debug)
+                    parts << QString("%1=%2").arg(csvEscape(key)).arg(checked ? "true" : "false");
+                else {
+                    // For no debug, key with spaces replaced by underscores, all lowercase (optional)
+                    QString simpleKey = key.toLower().replace(" ", "_");
+                    parts << QString("%1=%2").arg(simpleKey).arg(checked ? "true" : "false");
+                }
+            }
+        }
+
+        out << parts.join(",") << "\n";
+        return 0;
     }
 
     err << "Error: No valid dialog type specified. Use --help.\n";
