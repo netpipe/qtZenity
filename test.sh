@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Path to your compiled QtZenity executable
-QTZENITY="./qtzenity"
+QTZENITY="/Applications/qtZenity.app/contents/MacOS/qtZenity"
 
 # Run with multiple widgets and debug mode to get key=value pairs
 OUTPUT=$("$QTZENITY" \
@@ -37,15 +37,36 @@ for kv in "${parts[@]}"; do
   results["$key"]="$val"
 done
 
-# Access values
-echo ""
-echo "Parsed values:"
-echo "Name: ${results[input]}"
-echo "Calendar date: ${results[calendar]}"
-echo "Option A selected: ${results[option_a]}"
-echo "Option B selected: ${results[option_b]}"
-echo "Volume slider: ${results[slider]}"
-echo "Speed dial: ${results[dial]}"
-echo "Selected date/time: ${results[datetime]}"
-echo "Radio mode: ${results[radio]}"
-echo "Clock time: ${results[clock]}"
+# Set initial input line
+line="$OUTPUT"
+
+# Initialize arrays
+i=0
+
+# Parse CSV key=value string
+while [ -n "$line" ]; do
+  case "$line" in
+    *,*)
+      pair="${line%%,*}"
+      line="${line#*,}"
+      ;;
+    *)
+      pair="$line"
+      line=""
+      ;;
+  esac
+
+  key="${pair%%=*}"
+  val="${pair#*=}"
+  keys[$i]="$key"
+  vals[$i]="$val"
+  i=$((i + 1))
+done
+
+# Print output in original order
+echo "=== Ordered Output ==="
+j=0
+while [ $j -lt $i ]; do
+  echo "${keys[$j]} = ${vals[$j]}"
+  j=$((j + 1))
+done
