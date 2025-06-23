@@ -24,6 +24,8 @@
 #include <iostream>
 
 using namespace std;
+QMap<QString, QButtonGroup*> radioGroups;
+
 
 QString csvEscape(const QString &str) {
     QString result = str;
@@ -172,9 +174,10 @@ int main(int argc, char *argv[]) {
                 layout->addWidget(rb);
                 if (i == 1) rb->setChecked(true);
             }
-            QButtonGroup *radioGroup = group;
+            radioGroups.insert(parts[0], group);  // Store group by label or name
         }
     }
+
 
     QLCDNumber *clockDisplay = nullptr;
     if (parser.isSet("clock")) {
@@ -226,12 +229,14 @@ int main(int argc, char *argv[]) {
         results << QString(debug ? "datetime=%1" : "%1").arg(dt->dateTime().toString(Qt::ISODate));
     }
 
-    if (widgetMap.contains("radio")) {
-        auto g = qobject_cast<QButtonGroup*>(widgetMap["radio"]);
-        QAbstractButton *btn = g->checkedButton();
-        if (btn)
-            results << QString(debug ? "radio=%1" : "%1").arg(btn->text());
+    for (auto it = radioGroups.begin(); it != radioGroups.end(); ++it) {
+        QString groupName = it.key();
+        QButtonGroup *group = it.value();
+        if (group->checkedButton()) {
+            results << QString("%1=%2").arg(groupName, group->checkedButton()->text());
+        }
     }
+
 
     if (clockDisplay)
         results << QString(debug ? "clock=%1" : "%1").arg(QTime::currentTime().toString("hh:mm:ss"));
