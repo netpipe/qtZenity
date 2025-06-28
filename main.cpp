@@ -22,9 +22,42 @@
 #include <QTimer>
 #include <QFileInfo>
 #include <iostream>
+#include <QDragEnterEvent>
+#include <QMimeData>
 
 using namespace std;
 QMap<QString, QButtonGroup*> radioGroups;
+
+class DropWidget : public QLabel {
+
+public:
+    QString droppedPath;
+
+    DropWidget(const QString &labelText = "Drop file here", QWidget *parent = nullptr)
+        : QLabel(labelText, parent) {
+        setAcceptDrops(true);
+        setAlignment(Qt::AlignCenter);
+        setFrameStyle(QFrame::StyledPanel | QFrame::Raised);
+        setMinimumHeight(100);
+    }
+
+protected:
+    void dragEnterEvent(QDragEnterEvent *event) override {
+        if (event->mimeData()->hasUrls()) {
+            event->acceptProposedAction();
+        }
+    }
+
+    void dropEvent(QDropEvent *event) override {
+        if (event->mimeData()->hasUrls()) {
+            QList<QUrl> urls = event->mimeData()->urls();
+            if (!urls.isEmpty()) {
+                droppedPath = urls.first().toLocalFile();
+                setText("Dropped:\n" + droppedPath);
+            }
+        }
+    }
+};
 
 
 QString csvEscape(const QString &str) {
@@ -51,6 +84,7 @@ int main(int argc, char *argv[]) {
         {"datetime", "DateTimeEdit with label", "label"},
         {"radio", "Radio: label,opt1,opt2,...", "spec"},
         {"image", "Image: path[,w,h]", "spec"},
+        {"dropzone", "dropzone: path", "label"},
         {"movie", "Movie/GIF: path[,w,h]", "spec"},
         {"clock", "Show clock"},
         {"window-size", "Window size: w,h", "spec"},
@@ -75,6 +109,20 @@ int main(int argc, char *argv[]) {
     }
 
     QMap<QString, QWidget*> widgetMap;
+
+    DropWidget *dropZone = nullptr;
+
+    if (parser.isSet("dropzone")) {
+        QString label = parser.value("dropzone");
+        dropZone = new DropWidget(label);
+        layout->addWidget(dropZone);
+    }
+
+  //  setPixmap(QPixmap(":/upload.png").scaled(48, 48, Qt::KeepAspectRatio));
+  //  setText("\nDrop file here");
+  //  setAlignment(Qt::AlignCenter);
+ //   setStyleSheet("QLabel { border: 2px dashed gray; padding: 10px; }");
+
 
     if (parser.isSet("image")) {
         auto specs = parser.values("image");
