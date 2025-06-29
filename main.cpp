@@ -1,4 +1,4 @@
-// qtzenity_extended.cpp
+﻿// qtzenity_extended.cpp
 // Compile with: g++ qtzenity_extended.cpp -o qtzenity `pkg-config --cflags --libs Qt5Widgets`
 
 #include <QApplication>
@@ -283,6 +283,10 @@ int main(int argc, char *argv[]) {
         if (group->checkedButton()) {
             results << QString("%1=%2").arg(groupName, group->checkedButton()->text());
         }
+    }
+
+    if (dropZone && !dropZone->droppedPath.isEmpty()) {
+        results << QString("drop=%1").arg(dropZone->droppedPath);
     }
 
 
